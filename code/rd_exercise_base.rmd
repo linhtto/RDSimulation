@@ -1,16 +1,19 @@
-
 ---
 title: "RD Robustness Project"
-author: "Maor Milgrom"
+author: "Matthew Hong"
 date: "`r Sys.Date()`"
-output: 
-  pdf_document:
+output:
+  html_document:
     df_print: paged
+params:
+  exercise: 
+    value: zero
+    choices: [zero, bwo]
 ---
 
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, fig.height=4.5, root.dir = 'C:/Users/yaela/Dropbox (Brown)/Brown/RA/RD/R')
-setwd("C:/Users/yaela/Dropbox (Brown)/Brown/RA/RD/R")  
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, fig.height=4.5, root.dir = '~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code')
+setwd("~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code")  
 ```
 
 
@@ -24,7 +27,7 @@ Replacing observations outside Optimal Bandwitdh (OBW) with zeros, or dropping t
 
 ### Select exercise type:
 ```{r select_exercise}
-exercise="bwo"      # Type of exercise - "zero" or "bwo" ('bandwidth only')
+exercise=params$exercise      # Type of exercise - "zero" or "bwo" ('bandwidth only')
 ```
 
 
@@ -73,7 +76,7 @@ colnames(results.exercise) <- c("coef","obw","obw_l","obw_r",
                              "coef_diff","obw_diff")
 
 ### Extensions for files based on parameters selected
-figs.dir="C:/Users/yaela/Dropbox (Brown)/Brown/RA/RD/R/figures/"
+figs.dir="/Users/MH/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/figures/"
 quad_test=ifelse(quadratic==T,"quadratic","linear")
 normal_test=ifelse(normal.x==T,"rnorm","runif")
 bc_test=ifelse(bc==T,"bc","c")
