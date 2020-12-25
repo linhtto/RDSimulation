@@ -14,14 +14,33 @@ else
 	rm output/*
 fi
 
-# Actually compile RMarkdowns for two parameters ()
+# Actually compile RMarkdowns for two parameters (bwo and zero)
 Rscript -e "rmarkdown::render('code/rd_exercise_base.rmd',\
 output_format = 'html_document', output_dir = 'output/',\
+output_file ='rd_exercise_base_bwo',\
 params=list(exercise = 'bwo'))"
 
-# Rscript -e "rmarkdown::render('code/rd_exercise_base.rmd',\
+Rscript -e "rmarkdown::render('code/rd_exercise_base.rmd',\
+output_format = 'html_document', output_dir = 'output/',\
+output_file ='rd_exercise_base_zero',\
+params=list(exercise = 'zero'))"
+
+# Rscript -e "rmarkdown::render('code/rd_exercise_stressout.rmd',\
 # output_format = 'html_document', output_dir = 'output/',\
+# output_file ='rd_exercise_stressout_bwo',\
+# params=list(exercise = 'bwo'))"
+
+# Rscript -e "rmarkdown::render('code/rd_exercise_stressout.rmd',\
+# output_format = 'html_document', output_dir = 'output/',\
+# output_file ='rd_exercise_stressout_zero',\
 # params=list(exercise = 'zero'))"
 
-# Rscript	-e "rmarkdown::render('rd_exercise_stressout.Rmd', output_dir='output/')"
-# Rscript -e "rmarkdown::render('rd_exercise_intervals.Rmd', output_dir='output/')"
+# Rscript -e "rmarkdown::render('code/rd_exercise_intervals.rmd',\
+# output_format = 'html_document', output_dir = 'output/',\
+# output_file ='rd_exercise_intervals_bwo',\
+# params=list(exercise = 'bwo'))"
+
+# Rscript -e "rmarkdown::render('code/rd_exercise_intervals.rmd',\
+# output_format = 'html_document', output_dir = 'output/',\
+# output_file ='rd_exercise_intervals_zero',\
+# params=list(exercise = 'zero'))"
