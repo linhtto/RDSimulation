@@ -47,6 +47,7 @@ library(rdrobust)
 library(ggplot2)
 library(reshape2)
 library(knitr)
+library(data.table)
 set.seed(1)
 ```
 
@@ -68,10 +69,10 @@ bc=F              # bias-corrected estimates or conventional
 
 
 ```{r setup, include=F}
-### dataframes for storing results
-results<- as.data.frame(matrix(0, ncol = 4, nrow = loop))
+### data.tables for storing results
+results <- as.data.table(matrix(0, ncol = 4, nrow = loop))
 colnames(results) <- c("coef","obw","obw_l","obw_r")
-results.exercise<- as.data.frame(matrix(0, ncol = 6, nrow = loop))
+results.exercise<- as.data.table(matrix(0, ncol = 6, nrow = loop))
 colnames(results.exercise) <- c("coef","obw","obw_l","obw_r",
                              "coef_diff","obw_diff")
 
@@ -89,21 +90,21 @@ begin.figures=loop-figs.iter.save
 ### Simulate DGP + Plot
 ```{r dgp}
 ## dataframe for dgp
-df <- as.data.frame(matrix(0, ncol = 0, nrow = length(seq(-100,100,0.01))))
-df$x=round(seq(-100,100,0.01), digits=2)
-df=subset(df,df$x!=0)
-df$treated <- ifelse(df$x>0, 1, 0)
+dt <- as.data.table(matrix(0,ncol=0,nrow=length(seq(-100,100,0.01))))
+dt$x <- round(seq(-100,100,0.01), digits=2)
+dt <- dt[x!=0]
+dt$treated <- ifelse(dt$x>0,1,0)
 
-df$y.model<- 0.5*df$x  - 0.025*df$x^2*quadratic + jump*df$treated
-df$y=df$y.model+rnorm(length(df$x),0,dgp.sd)
+dt$y.model <- 0.5*dt$x - 0.025*dt$x^2*quadratic + jump*dt$treated
+dt$y=dt$y.model + rnorm(length(dt$x),0,dgp.sd)
 
 ## dataframe for draws (samples)
-sample.x <- as.data.frame(matrix(0, ncol = 0, nrow = nrow(df)/10)) 
+sample.x <- as.data.table(matrix(0, ncol = 0, nrow = nrow(df)/10)) 
 ```
 
 ```{r plot_dgp, echo=F}
 ### Plot DGP
-df %>%
+dt %>%
   filter(x > -50 & x < 50) %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
        col="blue", ylab = "Y", xlab = "X") %T>%
@@ -111,13 +112,14 @@ df %>%
   plot(y.model~x,., ylim = range(c(y,y.model)),
        axes = FALSE, xlab = "", ylab = "")
   title(main = "DGP + Model")
+  
 ```
 
 
-```{r dgp_plot_save, include=FALSE}
+```{r dgp_plot_save, include=F}
 figure_name=paste(figs.dir,"dgp_",quad_test,".png",sep = "")
 png(figure_name)
-df %T>%
+dt %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
        col="blue", ylab = "Y", xlab = "X") %T>%
   par(new = T) %>%
@@ -130,7 +132,7 @@ dev.off()
 Running `r loop` iterations, and saving figures from `r figs.iter.save` last iterations to file.
 In each iteration, we: \newline
 
-1. draw randomly `r nrow(df)/10` observations around the cutoff.
+1. draw randomly `r nrow(dt)/10` observations around the cutoff.
 2. compute the OBW and RD coefficient.
 3. drop observations outside OBW/replace them with zero
 4. compute again the OBW and RD coefficient.
@@ -143,11 +145,11 @@ for(i in 1:loop) {
     sample.x$x <- round(runif(nrow(df)/10, -20,20),digits = 2) 
   }
   
-  sample.x=subset(sample.x, x>-100 & x<100)
-  sample=as.data.frame(inner_join(df, sample.x, by="x"))
-  results.current=rdrobust(sample$y,sample$x,bwselect = symm_obw)
+  sample.x <- sample.x[x>-100 & x<100]
+  sample <- dt[sample.x, on="x"]
+  results.current <- rdrobust(sample$y,sample$x,bwselect = symm_obw)
   results[i,1]=results.current$coef[bc+1]-jump # normalizing to zero
-  results[i,3:4]=results.current$bws[bc+1,1:2]
+  results[i,c(3,4)]<-results.current$bws[bc+1,1:2]
   results[i,2]=results[i,3]+results[i,4]
   
 
