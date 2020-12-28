@@ -6,7 +6,7 @@ output:
   html_document:
     df_print: paged
 params:
-  exercise: 
+  exercise:
     value: zero
     choices: [zero, bwo]
 ---
@@ -99,13 +99,12 @@ dt$y.model <- 0.5*dt$x - 0.025*dt$x^2*quadratic + jump*dt$treated
 dt$y=dt$y.model + rnorm(length(dt$x),0,dgp.sd)
 
 ## dataframe for draws (samples)
-sample.x <- as.data.table(matrix(0, ncol = 0, nrow = nrow(df)/10)) 
+sample.x <- as.data.table(matrix(0, ncol = 0, nrow = nrow(dt)/10)) 
 ```
 
 ```{r plot_dgp, echo=F}
 ### Plot DGP
-dt %>%
-  filter(x > -50 & x < 50) %T>%
+dt[x %between% c(-50,50)] %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
        col="blue", ylab = "Y", xlab = "X") %T>%
   par(new = T) %>%
@@ -119,7 +118,7 @@ dt %>%
 ```{r dgp_plot_save, include=F}
 figure_name=paste(figs.dir,"dgp_",quad_test,".png",sep = "")
 png(figure_name)
-dt %T>%
+dt[x %between% c(-50,50)] %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
        col="blue", ylab = "Y", xlab = "X") %T>%
   par(new = T) %>%
@@ -140,34 +139,34 @@ In each iteration, we: \newline
 ```{r iterations, include=F}
 for(i in 1:loop) {
   if (normal.x==T) {
-    sample.x$x <- round(rnorm(nrow(df)/10, 0, 10),digits = 2) 
+    sample.x$x <- round(rnorm(nrow(dt)/10, 0, 10),digits = 2) 
   } else {
-    sample.x$x <- round(runif(nrow(df)/10, -20,20),digits = 2) 
+    sample.x$x <- round(runif(nrow(dt)/10, -20,20),digits = 2) 
   }
   
-  sample.x <- sample.x[x>-100 & x<100]
-  sample <- dt[sample.x, on="x"]
-  results.current <- rdrobust(sample$y,sample$x,bwselect = symm_obw)
-  results[i,1]=results.current$coef[bc+1]-jump # normalizing to zero
-  results[i,c(3,4)]<-results.current$bws[bc+1,1:2]
-  results[i,2]=results[i,3]+results[i,4]
+  sample.x <- sample.x[x %between% c(-100,100)]
+  sample <- merge(dt,sample.x, by="x")
   
-
+  results.current <- rdrobust(sample$y,sample$x,bwselect = symm_obw)
+  results[i,1 := results.current$coef[bc+1]-jump] # normalizing to zero
+  results[i,3 := .(results.current$bws[bc+1,][[1]])]
+  results[i,4 := .(results.current$bws[bc+1,][[2]])]
+  results[i,2 := sum(obw_l,obw_r)]
+  
   if (exercise=="zero") {
-    sample.exercise=sample
-    sample.exercise$y <- ifelse(sample$x> -results[i,3] & 
-                                     sample$x< results[i,4], sample$y, 0)
+    sample.exercise = copy(sample)
+    sample.exercise[, y := fifelse(x %between% c(-results[i,3], results[i,4]), y,0)]
     
   } else if (exercise=="bwo") {
-    sample.exercise=subset(sample,x> -results[i,3] & x< results[i,4])
+    sample.exercise <- sample[x %between% c(-results[i,3],results[i,4])]
   }
   
-  results.current=rdrobust(sample.exercise$y,sample.exercise$x,bwselect = symm_obw)
-  results.exercise[i,1]=results.current$coef[bc+1]-jump # normalizing to zero
-  results.exercise[i,3:4]=results.current$bws[bc+1,1:2]
-  results.exercise[i,2]=results.exercise[i,3]+results.exercise[i,4]
-  
-  results.exercise[i,5:6]=results[i,1:2]-results.exercise[i,1:2] # computing diff from base
+  results.current <- rdrobust(sample.exercise$y,sample.exercise$x,bwselect = symm_obw)
+  results.exercise[i,1 := results.current$coef[bc+1]-jump] # normalizing to zero
+  results.exercise[i,3 := .(results.current$bws[bc+1,][[1]])]
+  results.exercise[i,4 := .(results.current$bws[bc+1,][[2]])]
+  results.exercise[i,2 := sum(obw_l,obw_r)]
+  results.exercise[i,5:6] <- results[i,1:2]-results.exercise[i,1:2] # computing diff from base
 
 ### FIGURES INSIDE LOOP - SPECIFIC DRAWS ###
 if (i >= begin.figures) {
@@ -176,10 +175,8 @@ if (i >= begin.figures) {
     
     figure_name=paste(figs.dir,"sample",i,exercise,"_",save.ext,"_","model.png",sep = "")
     png(figure_name)
-    temp.exercise=sample.exercise %>%
-      filter(x > -20 & x < 20)
-    temp=sample %>%
-      filter(x > -20 & x < 20)
+    temp.exercise <- sample.exercise[x %between% c(-20,20)]
+    temp <- sample[x %between% c(-20,20)]
     plot(temp$y~temp$x, ylim = range(c(temp.exercise$y,temp$y)),
          xlim = range(c(temp.exercise$x,temp$x)),
          col="red", ylab = "Y", xlab = "X")
@@ -208,8 +205,7 @@ if (i >= begin.figures) {
     
     figure_name=paste(figs.dir,"sample",i,"_",save.ext,".png",sep = "")
     png(figure_name)
-    sample %>%
-      filter(x > -30 & x < 30) %T>%
+    sample[x %between% c(-30,30)] %T>%
       plot(y~x,., ylim = range(c(y,y.model)),
            col="blue", ylab = "Y", xlab = "X") %T>%
       par(new = T) %>%
@@ -228,8 +224,7 @@ if (i >= begin.figures) {
     coef_base=paste("Base: Coef = ",round(results[i,1],digits = 2)+jump,sep = "")
     coef_treat=paste(exercise,": Coef = ",round(results.exercise[i,1],digits = 2)+jump,sep = "")
     
-      sample %>%
-      filter(x > -30 & x < 30) %T>%
+      sample[x %between% c(-30,30)] %T>%
       plot(y~x,., ylim = range(c(y,y.model)),
            col="blue", ylab = "Y", xlab = "X") %T>%
       par(new = T) %>%
@@ -239,10 +234,8 @@ if (i >= begin.figures) {
     
     rdplot(sample$y,sample$x, title = "RD Plot for basline")
 
-    temp.exercise=sample.exercise %>%
-      filter(x > -20 & x < 20)
-    temp=sample %>%
-      filter(x > -20 & x < 20)
+    temp.exercise <- sample.exercise[x %between% c(-20,20)]
+    temp <- sample[x %between% c(-20,20)]
     plot(temp$y~temp$x, ylim = range(c(temp.exercise$y,temp$y)),
          xlim = range(c(temp.exercise$x,temp$x)),
          col="red", ylab = "Y", xlab = "X")
@@ -332,7 +325,7 @@ cor(results$coef,results.exercise$coef_diff)
 ### Summary results - table:
 Note: coefficient (treatment effects) are normalized to zero, by subtracting from each estimate the size of the jump at the cutoff.
 ```{r table, echo=F}
-results_table=as.data.frame(matrix(0, ncol = 3, nrow = 0))
+results_table=as.data.table(matrix(0, ncol = 3, nrow = 2))
 results_table[1,1]=round(mean(results$coef),digits = 4)
 results_table[1,2]=round(mean(results.exercise$coef),digits = 4)
 results_table[1,3]=round(mean(results.exercise$coef_diff),digits = 4)
