@@ -1,15 +1,15 @@
 ---
 title: "RD Robustness Project"
 subtitle: "Exercise: dropping data away from cutoff"
-author: "Maor Milgrom"
+author: "Matthew Hong & Maor Milgrom"
 date: "`r Sys.Date()`"
-output: 
-  pdf_document:
-    df_print: paged
+output:
+  html_document:
+    dt_print: paged
 ---
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, fig.height=4.5, root.dir = 'C:/Users/yaela/Dropbox (Brown)/Brown/RA/RD/R')
-setwd("C:/Users/yaela/Dropbox (Brown)/Brown/RA/RD/R")  
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, fig.height=4.5, root.dir = '~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code')
+setwd('~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code')  
 ```
 
 
@@ -26,6 +26,7 @@ library(rdrobust)
 library(ggplot2)
 library(reshape2)
 library(knitr)
+library(data.table)
 set.seed(1)
 ```
 
@@ -47,15 +48,15 @@ var.list=c("coef.c","coef.bc","obw.c","obw.bc")
 
 ```{r setup, include=F}
 ### dataframes for storing results
-df.temp=as.data.frame(matrix(0, ncol = length(intervals), nrow = loop))
-colnames(df.temp) = paste("int",intervals,sep="_")
+dt.temp=as.data.table(matrix(0, ncol = length(intervals), nrow = loop))
+colnames(dt.temp) = paste("int",intervals,sep="_")
 
-for (df.name in var.list) {
-  assign(df.name,df.temp)
+for (dt.name in var.list) {
+  assign(dt.name,dt.temp)
 }
 
 ### Extensions for files based on parameters selected
-figs.dir="C:/Users/yaela/Dropbox (Brown)/Brown/RA/RD/R/figures/"
+figs.dir="/Users/MH/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/figures/"
 quad_test=ifelse(quadratic==T,"quadratic","linear")
 normal_test=ifelse(normal.x==T,"rnorm","runif")
 bc_test=ifelse(bc==T,"bc","c")
@@ -67,21 +68,20 @@ begin.figures=loop-figs.iter.save
 
 ### Simulate DGP and plot
 ```{r dgp}
-df <- as.data.frame(matrix(0, ncol = 0, nrow = length(seq(-100,100,0.01))))
-df$x=round(seq(-100,100,0.01), digits=2)
-df=subset(df,df$x!=0)
-df$treated <- ifelse(df$x>0, 1, 0)
+dt <- as.data.table(matrix(0, ncol = 0, nrow = length(seq(-100,100,0.01))))
+dt$x <- round(seq(-100,100,0.01), digits=2)
+dt <- dt[x!=0]
+dt$treated <- ifelse(dt$x>0, 1, 0)
 
-df$y.model<- 0.5*df$x  - 0.025*df$x^2*quadratic + jump*df$treated
-df$y=df$y.model+rnorm(length(df$x),0,dgp.sd)
+dt$y.model<- 0.5*dt$x  - 0.025*dt$x^2*quadratic + jump*dt$treated
+dt$y=dt$y.model+rnorm(length(dt$x),0,dgp.sd)
 
 ## dataframe for draws (samples)
-sample.x <- as.data.frame(matrix(0, ncol = 0, nrow = nrow(df)/10))
+sample.x <- as.data.table(matrix(0, ncol = 0, nrow = nrow(dt)/10))
 ```
 
 ```{r plot_dgp, echo=F}
-df %>%
-  filter(x > -50 & x < 50) %T>%
+dt[x %between% c(-50,50)] %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
        col="blue", ylab = "Y", xlab = "X") %T>%
   par(new = T) %>%
@@ -95,25 +95,25 @@ df %>%
 Running `r loop` iterations, and presenting figures from last iteration for illustration
 In each iteration, and for each of the `r length(intervals)` intervals, , we: \newline
 
-1. Draw randomly `r nrow(df)/10` observations around the cutoff.
+1. Draw randomly `r nrow(dt)/10` observations around the cutoff.
 2. Keep data in that interval around cutoff
 4. compute OBW and RD coefficient
 
 ```{r iterations, include=F}
 for (i in 1:loop) {
   if (normal.x==T) {
-    sample.x$x <- round(rnorm(nrow(df)/10, 0, 10),digits = 2) 
+    sample.x$x <- round(rnorm(nrow(dt)/10, 0, 10),digits = 2) 
   } else {
-    sample.x$x <- round(runif(nrow(df)/10, -20,20),digits = 2) 
+    sample.x$x <- round(runif(nrow(dt)/10, -20,20),digits = 2) 
   }
 
-  sample.x=subset(sample.x, x>-100 & x<100)
-  sample=as.data.frame(inner_join(df, sample.x, by="x"))
+  sample.x <- sample.x[x %between% c(-100,100)]
+  sample=merge(dt,sample.x,by="x") 
 
   for (j in intervals) {
     t=which(j==intervals)
-    sample.int=subset(sample,x> -j & x< j)
-     results.current=rdrobust(sample.int$y,sample.int$x, bwselect = symm_obw)
+    sample.int <- sample[x %between% c(-j,j)]
+     results.current <- rdrobust(sample.int$y,sample.int$x, bwselect = symm_obw)
     coef.c[i,t]=results.current$coef[1]-jump
     coef.bc[i,t]=results.current$coef[2]-jump
     obw.c[i,t]=results.current$bws[1,1]
@@ -136,18 +136,18 @@ for (i in 1:loop) {
 
 ### Figures summarizing iterations
 ```{r figures_summary_print, echo=F, fig.height=3}
-fig.df <- data.frame(coef_bc=c(coef.bc$int_5,coef.bc$int_10,coef.bc$int_20,coef.bc$int_40), spec = rep(c("interval=5", "interval=10", "interval=20","interval=40"),
+fig.dt <- data.table(coef_bc=c(coef.bc$int_5,coef.bc$int_10,coef.bc$int_20,coef.bc$int_40), spec = rep(c("interval=5", "interval=10", "interval=20","interval=40"),
                                       each = loop))
-fig.df$spec <- factor(fig.df$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
-ggplot(fig.df, aes(x = coef_bc, fill = spec)) + geom_density(alpha = 0.3) +
+fig.dt$spec <- factor(fig.dt$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
+ggplot(fig.dt, aes(x = coef_bc, fill = spec)) + geom_density(alpha = 0.3) +
   geom_vline(xintercept=0,  linetype="dashed") +
   labs(title = "Density of RD coefficients for different intervals",
        subtitle = "Bias-corrected estimates")
   
-fig.df <- data.frame(coef_c=c(coef.c$int_5,coef.c$int_10,coef.c$int_20,coef.c$int_40), 
+fig.dt <- data.table(coef_c=c(coef.c$int_5,coef.c$int_10,coef.c$int_20,coef.c$int_40), 
                   spec = rep(c("interval=5", "interval=10", "interval=20","interval=40"),                                                                                                    each = loop))
-fig.df$spec <- factor(fig.df$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
-ggplot(fig.df, aes(x = coef_c, fill = spec)) + geom_density(alpha = 0.3) +
+fig.dt$spec <- factor(fig.dt$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
+ggplot(fig.dt, aes(x = coef_c, fill = spec)) + geom_density(alpha = 0.3) +
   geom_vline(xintercept=0,  linetype="dashed") +
   labs(title = "Density of RD coefficients for different intervals",
        subtitle = "Conventional estimates")
@@ -155,22 +155,22 @@ ggplot(fig.df, aes(x = coef_c, fill = spec)) + geom_density(alpha = 0.3) +
 
 
 ```{r figures_summary_save, include=F}
-fig.df <- data.frame(coef_bc=c(coef.bc$int_5,coef.bc$int_10,coef.bc$int_20,coef.bc$int_40), spec = rep(c("interval=5", "interval=10", "interval=20","interval=40"),
+fig.dt <- data.table(coef_bc=c(coef.bc$int_5,coef.bc$int_10,coef.bc$int_20,coef.bc$int_40), spec = rep(c("interval=5", "interval=10", "interval=20","interval=40"),
                                       each = loop))
-fig.df$spec <- factor(fig.df$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
+fig.dt$spec <- factor(fig.dt$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
 figure_name=paste(figs.dir,"coef_bc_interval_bias_",save.ext,".png",sep = "")
 
 png(figure_name)
-ggplot(fig.df, aes(x = coef_bc, fill = spec)) + geom_density(alpha = 0.3) +
+ggplot(fig.dt, aes(x = coef_bc, fill = spec)) + geom_density(alpha = 0.3) +
   geom_vline(xintercept=0,  linetype="dashed")
 dev.off()
 
-fig.df <- data.frame(coef_c=c(coef.c$int_5,coef.c$int_10,coef.c$int_20,coef.c$int_40), 
+fig.dt <- data.table(coef_c=c(coef.c$int_5,coef.c$int_10,coef.c$int_20,coef.c$int_40), 
                   spec = rep(c("interval=5", "interval=10", "interval=20","interval=40"),                                                                                                    each = loop))
-fig.df$spec <- factor(fig.df$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
+fig.dt$spec <- factor(fig.dt$spec, levels =c("interval=5", "interval=10", "interval=20","interval=40"))
 figure_name=paste(figs.dir,"coef_c_interval_bias_",save.ext,".png",sep = "")
 png(figure_name)
-ggplot(fig.df, aes(x = coef_c, fill = spec)) + geom_density(alpha = 0.3) +
+ggplot(fig.dt, aes(x = coef_c, fill = spec)) + geom_density(alpha = 0.3) +
   geom_vline(xintercept=0,  linetype="dashed")
 dev.off()
 ```
