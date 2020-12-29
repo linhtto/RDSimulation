@@ -1,6 +1,6 @@
 ---
 title: "RD Robustness Project"
-author: "Matthew Hong"
+author: "Matthew Hong & Maor Milgrom"
 date: "`r Sys.Date()`"
 output:
   html_document:

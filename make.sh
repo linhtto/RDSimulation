@@ -20,10 +20,14 @@ output_format = 'html_document', output_dir = 'output/',\
 output_file ='rd_exercise_base_bwo',\
 params=list(exercise = 'bwo'))"
 
-# Rscript -e "rmarkdown::render('code/rd_exercise_base.rmd',\
-# output_format = 'html_document', output_dir = 'output/',\
-# output_file ='rd_exercise_base_zero',\
-# params=list(exercise = 'zero'))"
+Rscript -e "rmarkdown::render('code/rd_exercise_base.rmd',\
+output_format = 'html_document', output_dir = 'output/',\
+output_file ='rd_exercise_base_zero',\
+params=list(exercise = 'zero'))"
+
+Rscript -e "rmarkdown::render('code/rd_exercise_intervals.rmd',\
+output_format = 'html_document', output_dir = 'output/',\
+output_file ='rd_exercise_intervals')"
 
 # Rscript -e "rmarkdown::render('code/rd_exercise_stressout.rmd',\
 # output_format = 'html_document', output_dir = 'output/',\
@@ -34,7 +38,3 @@ params=list(exercise = 'bwo'))"
 # output_format = 'html_document', output_dir = 'output/',\
 # output_file ='rd_exercise_stressout_zero',\
 # params=list(exercise = 'zero'))"
-
-# Rscript -e "rmarkdown::render('code/rd_exercise_intervals.rmd',\
-# output_format = 'html_document', output_dir = 'output/',\
-# output_file ='rd_exercise_intervals')"
