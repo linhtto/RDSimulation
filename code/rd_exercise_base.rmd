@@ -154,7 +154,7 @@ for(i in 1:loop) {
   
   if (exercise=="zero") {
     sample.exercise = copy(sample)
-    sample.exercise[, y := fifelse(x %between% c(-results[i,3], results[i,4]), y,0)]
+    sample.exercise[, y := fifelse(sample$x %between% c(-results[i,3], results[i,4]), sample$y,0)]
     
   } else if (exercise=="bwo") {
     sample.exercise <- sample[x %between% c(-results[i,3],results[i,4])]
