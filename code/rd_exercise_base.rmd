@@ -8,9 +8,6 @@ params:
   exercise:
     value: bwo
     choices: [zero, bwo]
-  dgp.sd:
-    value: 1
-    choices: [1,3,5,10]
 ---
 
 ```{r global_options, include=FALSE}
@@ -65,8 +62,8 @@ figs.iter.save=5
 quadratic=T       # T - quadratic DGP, F - linear
 symm_obw="mserd"  # mserd - symmetric OBW, msetwo - asymmetric OBW 
 normal.x=T        # T - normal draws of x around cutoff, F - uniform draws
-dgp.sd=params$dgp.sd         # sd of normal noise added to DGP
-bc=T              # bias-corrected estimates or conventional
+dgp.sd=5         # sd of normal noise added to DGP
+bc=F              # bias-corrected estimates or conventional
 pol.order=1       # order of local polynomial approx.
 set.seed(123)
 ```
@@ -241,6 +238,8 @@ if (i >= begin.figures) {
     dev.off()
   }
 }
+
+beepr::beep(3)
 ```
 
 
@@ -410,22 +409,56 @@ colnames(full) <- c("base(bc=F)", paste(exercise,"(bc=F)",sep=""),"diff_base(bc=
 
 # save(full, file = "rdsim_sd_bc_results.RData")
 # load("rdsim_sd_bc_results.RData")
-kable(full,"html") %>% kable_styling("striped") %>% save_kable(paste(figs.dir,"rdsim.html",sep = ""))
+kable(full,"html") %>% kable_styling("striped") %>% save_kable(paste(figs.dir,"rdsim.png",sep = ""))
 
-figure_name=paste(figs.dir,"rdsimplot.png",sep = "")
+figure_name=paste(figs.dir,"rdsimplot1.png",sep = "")
 png(figure_name)
-plot(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),1],
+plot(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),1]/jump,
      type="l", 
      lwd=2,
      col="black",
      xlab="DGP Noise SD",
-     ylab="Bias net of TE=10",
+     ylab="Bias / Tau, Tau=10",
      main="RDRobust Bias Comparison")
-lines(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),4], 
+lines(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),4]/jump, 
       col="blue",
       lwd=2)
-legend("topleft",legend=c("Conventional","Bias-Corrected"),
+legend("topleft",legend=c("Conv. Baseline","Bias-Corr. Baseline"),
        col=c("black","blue"),
+       lwd=2)
+dev.off()
+
+figure_name=paste(figs.dir,"rdsimplot2.png",sep = "")
+png(figure_name)
+plot(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),1]/jump,
+     type="l", 
+     lwd=2,
+     col="black",
+     xlab="DGP Noise SD",
+     ylab="Bias / Tau, Tau=10",
+     main="RDRobust Bias Comparison")
+lines(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),2]/jump, 
+      col="red",
+      lwd=2)
+legend("topleft",legend=c("Conv. Baseline","Conv. BWO"),
+       col=c("black","red"),
+       lwd=2)
+dev.off()
+
+figure_name=paste(figs.dir,"rdsimplot3.png",sep = "")
+png(figure_name)
+plot(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),4]/jump,
+     type="l", 
+     lwd=2,
+     col="blue",
+     xlab="DGP Noise SD",
+     ylab="Bias / Tau, Tau=10",
+     main="RDRobust Bias Comparison")
+lines(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),5]/jump, 
+      col="red",
+      lwd=2)
+legend("topleft",legend=c("Bias-Corr. Baseline","Bias-Corr. BWO"),
+       col=c("blue","red"),
        lwd=2)
 dev.off()
 
