@@ -1,14 +1,16 @@
 ---
 title: "RD Robustness Project"
-author: "Matthew Hong & Maor Milgrom"
 date: "`r Sys.Date()`"
 output:
   html_document:
     df_print: paged
 params:
   exercise:
-    value: zero
+    value: bwo
     choices: [zero, bwo]
+  dgp.sd:
+    value: 1
+    choices: [1,3,5,10]
 ---
 
 ```{r global_options, include=FALSE}
@@ -47,8 +49,8 @@ library(rdrobust)
 library(ggplot2)
 library(reshape2)
 library(knitr)
+library(kableExtra)
 library(data.table)
-set.seed(1)
 ```
 
 
@@ -63,18 +65,20 @@ figs.iter.save=5
 quadratic=T       # T - quadratic DGP, F - linear
 symm_obw="mserd"  # mserd - symmetric OBW, msetwo - asymmetric OBW 
 normal.x=T        # T - normal draws of x around cutoff, F - uniform draws
-dgp.sd=10         # sd of normal noise added to DGP
-bc=F              # bias-corrected estimates or conventional
+dgp.sd=params$dgp.sd         # sd of normal noise added to DGP
+bc=T              # bias-corrected estimates or conventional
+pol.order=1       # order of local polynomial approx.
+set.seed(123)
 ```
 
 
 ```{r setup, include=F}
 ### data.tables for storing results
-results <- as.data.table(matrix(0, ncol = 4, nrow = loop))
-colnames(results) <- c("coef","obw","obw_l","obw_r")
-results.exercise<- as.data.table(matrix(0, ncol = 6, nrow = loop))
+results <- as.data.table(matrix(0, ncol = 5, nrow = loop))
+colnames(results) <- c("coef","obw","obw_l","obw_r","se")
+results.exercise<- as.data.table(matrix(0, ncol = 8, nrow = loop))
 colnames(results.exercise) <- c("coef","obw","obw_l","obw_r",
-                             "coef_diff","obw_diff")
+                             "coef_diff","obw_diff","se","se_diff")
 
 ### Extensions for files based on parameters selected
 figs.dir="/Users/MH/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/figures/"
@@ -106,10 +110,10 @@ sample.x <- as.data.table(matrix(0, ncol = 0, nrow = nrow(dt)/10))
 ### Plot DGP
 dt[x %between% c(-50,50)] %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
-       col="blue", ylab = "Y", xlab = "X") %T>%
+       pch=20, col="blue", ylab = "Y", xlab = "X") %T>%
   par(new = T) %>%
   plot(y.model~x,., ylim = range(c(y,y.model)),
-       axes = FALSE, xlab = "", ylab = "")
+       pch=20, axes = FALSE, xlab = "", ylab = "")
   title(main = "DGP + Model")
   
 ```
@@ -120,10 +124,10 @@ figure_name=paste(figs.dir,"dgp_",quad_test,".png",sep = "")
 png(figure_name)
 dt[x %between% c(-50,50)] %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
-       col="blue", ylab = "Y", xlab = "X") %T>%
+       pch=20, col="blue", ylab = "Y", xlab = "X") %T>%
   par(new = T) %>%
   plot(y.model~x,., ylim = range(c(y,y.model)),
-       axes = FALSE, xlab = "", ylab = "")
+       pch=20, axes = FALSE, xlab = "", ylab = "")
 dev.off()
 ```
 
@@ -147,10 +151,22 @@ for(i in 1:loop) {
   sample.x <- sample.x[x %between% c(-100,100)]
   sample <- merge(dt,sample.x, by="x")
   
-  results.current <- rdrobust(sample$y,sample$x,bwselect = symm_obw)
+  if (i==loop){
+  ## Plot truncated DGP
+  sample[x %between% c(-50,50)] %T>%
+  plot(y~x,., ylim = range(c(y,y.model)),
+       pch=20, col="blue", ylab = "Y", xlab = "X") %T>%
+  par(new = T) %>%
+  plot(y.model~x,., ylim = range(c(y,y.model)),
+       pch=20, axes = FALSE, xlab = "", ylab = "")
+  title(main = "DGP + Model")
+  }
+  
+  results.current <- rdrobust(sample$y,sample$x,bwselect = symm_obw, p=pol.order)
   results[i,1 := results.current$coef[bc+1]-jump] # normalizing to zero
   results[i,c(3,4) := as.list(results.current$bws[bc+1,])]
   results[i,2 := sum(obw_l,obw_r)]
+  results[i,5 := results.current$se[bc+1]]
   
   if (exercise=="zero") {
     sample.exercise = copy(sample)
@@ -160,12 +176,25 @@ for(i in 1:loop) {
     sample.exercise <- sample[x %between% c(-results[i,3],results[i,4])]
   }
   
-  results.current <- rdrobust(sample.exercise$y,sample.exercise$x,bwselect = symm_obw)
+  results.current <- rdrobust(sample.exercise$y,sample.exercise$x,bwselect = symm_obw, p=pol.order)
   results.exercise[i,1 := results.current$coef[bc+1]-jump] # normalizing to zero
   results.exercise[i,c(3,4) := as.list(results.current$bws[bc+1,])]
   results.exercise[i,2 := sum(obw_l,obw_r)]
   results.exercise[i,5:6] <- results[i,1:2]-results.exercise[i,1:2] # computing diff from base
+  results.exercise[i,7 := results.current$se[bc+1]]
+  results.exercise[i,8 := results[i,5]-results.exercise[i,7]]
 
+  if (i==loop){
+    ## Plot truncated DGP
+    sample.exercise[x %between% c(-50,50)] %T>%
+    plot(y~x,., ylim = range(c(y,y.model)),
+         pch=20, col="blue", ylab = "Y", xlab = "X") %T>%
+    par(new = T) %>%
+    plot(y.model~x,., ylim = range(c(y,y.model)),
+         pch=20, axes = FALSE, xlab = "", ylab = "")
+    title(main = "DGP + Model")
+  }
+  
 ### FIGURES INSIDE LOOP - SPECIFIC DRAWS ###
 if (i >= begin.figures) {
     coef_base=paste("Base: Coef = ",round(results[i,1],digits = 2)+jump,sep = "")
@@ -275,9 +304,11 @@ ggplot(results.exercise, aes(coef)) + stat_density(geom="line") +
 ggplot(results.exercise, aes(coef_diff)) + stat_ecdf(geom = "step") +
       ggtitle(paste0("CDF of difference b/w coefficients of baseline and ",exercise))
 
-
 ggplot(results.exercise, aes(obw_diff)) + stat_ecdf(geom = "step") +
         ggtitle(paste0("CDF of difference b/w OBW of baseline and ",exercise))
+
+ggplot(results.exercise, aes(se_diff)) + stat_ecdf(geom = "step") +
+      ggtitle(paste0("CDF of difference b/w Standard Errors of baseline and ",exercise))
 ```
 
 ```{r figures_summary_save, include=F}
@@ -308,6 +339,11 @@ png(figure_name)
 ggplot(results.exercise, aes(obw_diff)) + stat_ecdf(geom = "step")
 dev.off()
 
+figure_name=paste(figs.dir,"se_diff_cdf_base","_",exercise,"_",save.ext,".png",sep = "")
+png(figure_name)
+ggplot(results.exercise, aes(se_diff)) + stat_ecdf(geom = "step")
+dev.off()
+
 ```
 
 ### Correlation between baseline OBW and change in OBW
@@ -323,16 +359,78 @@ cor(results$coef,results.exercise$coef_diff)
 ### Summary results - table:
 Note: coefficient (treatment effects) are normalized to zero, by subtracting from each estimate the size of the jump at the cutoff.
 ```{r table, echo=F}
-results_table=as.data.table(matrix(0, ncol = 3, nrow = 2))
+results_table=as.data.frame(matrix(0, ncol = 3, nrow = 3))
 results_table[1,1]=round(mean(results$coef),digits = 4)
 results_table[1,2]=round(mean(results.exercise$coef),digits = 4)
 results_table[1,3]=round(mean(results.exercise$coef_diff),digits = 4)
+
 results_table[2,1]=round(mean(results$obw),digits = 4)
 results_table[2,2]=round(mean(results.exercise$obw),digits = 4)
 results_table[2,3]=round(mean(results.exercise$obw_diff),digits = 4)
+
+results_table[3,1]=round(mean(results$se),digits = 4)
+results_table[3,2]=round(mean(results.exercise$se),digits = 4)
+results_table[3,3]=round(mean(results.exercise$se_diff),digits = 4)
+
 colnames(results_table) = c("base",exercise,"diff_base")
-rownames(results_table) = c("coef","obw")
-kable(results_table, caption = "Summary Table")
+rownames(results_table) = c("coef","obw","se")
+
+
+if (dgp.sd==1 & bc==F) {
+  table_sd_1 <- results_table
+} else if (dgp.sd==3 & bc==F) {
+  table_sd_3 <- results_table
+} else if (dgp.sd==5 & bc==F) {
+  table_sd_5 <- results_table
+} else if (bc==F) {
+  table_sd_10 <- results_table
+} 
+
+if (dgp.sd==1 & bc==T) {
+  table_sd_1_bc <- results_table
+} else if (dgp.sd==3 & bc==T) {
+  table_sd_3_bc <- results_table
+} else if (dgp.sd==5 & bc==T) {
+  table_sd_5_bc <- results_table
+} else if (bc==T) {
+  table_sd_10_bc <- results_table
+} 
+```
+
+```{r save_results, echo=F}
+bc_F <- rbind(table_sd_1,table_sd_3,table_sd_5,table_sd_10)
+bc_T <- rbind(table_sd_1_bc,table_sd_3_bc,table_sd_5_bc,table_sd_10_bc)
+full <- cbind(bc_F,bc_T)
+rownames(full) <- c("coef(sd=1)", "obw(sd=1)", "se(sd=1)",
+                    "coef(sd=3)", "obw(sd=3)", "se(sd=3)",
+                    "coef(sd=5)", "obw(sd=5)", "se(sd=5)",
+                    "coef(sd=10)", "obw(sd=10)", "se(sd=10)")
+colnames(full) <- c("base(bc=F)", paste(exercise,"(bc=F)",sep=""),"diff_base(bc=F)",
+                    "base(bc=T)", paste(exercise,"(bc=T)",sep=""),"diff_base(bc=T)")
+
+# save(full, file = "rdsim_sd_bc_results.RData")
+# load("rdsim_sd_bc_results.RData")
+kable(full,"html") %>% kable_styling("striped") %>% save_kable(paste(figs.dir,"rdsim.html",sep = ""))
+
+figure_name=paste(figs.dir,"rdsimplot.png",sep = "")
+png(figure_name)
+plot(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),1],
+     type="l", 
+     lwd=2,
+     col="black",
+     xlab="DGP Noise SD",
+     ylab="Bias net of TE=10",
+     main="RDRobust Bias Comparison")
+lines(x=c(1,3,5,10), y=full[grep("coef", rownames(as.data.frame(full)),value=T),4], 
+      col="blue",
+      lwd=2)
+legend("topleft",legend=c("Conventional","Bias-Corrected"),
+       col=c("black","blue"),
+       lwd=2)
+dev.off()
+
+# beepr::beep(3)
+
 ```
 
 ### Interpreting results
