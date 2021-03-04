@@ -1,0 +1,70 @@
+---
+title: "Simple Replication of Lee (2008)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE, fig.height=4.5, root.dir = '~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code')
+setwd("~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code")  
+```
+
+```{r packages, include=F}
+library(dplyr)
+library(rdrobust)
+library(ggplot2)
+library(reshape2)
+library(knitr)
+library(data.table)
+```
+
+```{r lee2008_dgp, echo=F}
+
+Nsim = 1000
+
+n=500
+alpha = 2
+beta = 4
+cutoff = 0
+sigma_e = 0.1295
+
+mleft <- function(X){
+  (0.48 + 1.27*X + 7.18*X^2 + 20.21*X^3 + 21.54*X^4 + 7.33*X^5)
+}
+
+mright <- function(X){
+  (0.52 + 0.84*X - 3.00*X^2 + 7.99*X^3 - 9.01*X^4 + 3.56*X^5)
+}
+
+tau <- mright(0)-mleft(0)
+tau_hat <- matrix(NA,nrow=Nsim,ncol=2)
+
+simgen <- function(n, alpha, beta, sigma_e, cutoff) {
+  dt <- as.data.table(matrix(NA, nrow=n, ncol=0))
+  dt[, X := 2*rbeta(n,alpha,beta)-1]
+  dt[, eps := rnorm(n,mean=0,sd=sigma_e)]
+  dt[, m := fifelse(X < cutoff, mleft(X), mright(X)) ]
+  dt[, y:=m+eps]
+  
+  # dt[, m := fifelse(X < c, (3.71 + 2.30*X + 3.28*X^2 + 1.45*X^3 + 0.23*X^4 + 0.03*X^5), (0.26 + 18.49*X - 54.81*X^2 + 74.30*X^3 - 45.02*X^4 + 9.83*X^5)) ] # Ludwig & Miller DGP
+  
+  rdmod <- rdrobust(dt$y,dt$X, c= cutoff,bwselect="mserd")
+  est <- rdmod$coef[1:2]
+  
+  return(est)
+}
+
+lee.st <- Sys.time()
+set.seed(1234)
+tau_hat <- as.data.table(t(sapply(rep(n,Nsim), simgen, alpha=alpha, beta=beta, sigma_e=sigma_e, cutoff=cutoff)))
+lee.et <- Sys.time()
+lee.et - lee.st
+
+colnames(tau_hat) <- c("Conventional", "Bias-corrected")
+
+tau_hat[, lapply(.SD,mean)]
+
+```
+
