@@ -3,6 +3,7 @@ title: "RD Robustness Project"
 date: "`r Sys.Date()`"
 output:
   html_document:
+    code_folding: hide
     df_print: paged
 params:
   exercise:
@@ -20,12 +21,10 @@ setwd("~/Documents/Boston/PhD/Research/2021_Spring_RA/RDSimulation/code")
 The goal of this project is to test the robustness of the Regression-Discontinuity analysis to different extreme cases, via simulations, using the 'rdrobust' package.  
 
 
-
 ## This Document: Excercise \#1
 Replacing observations outside Optimal Bandwitdh (OBW) with zeros, or dropping them.    
 
-### Select exercise type:
-```{r select_exercise}
+```{r select_exercise, include=F}
 exercise=params$exercise      # Type of exercise - "zero" or "bwo" ('bandwidth only')
 ```
 
@@ -48,6 +47,7 @@ library(reshape2)
 library(knitr)
 library(kableExtra)
 library(data.table)
+library(here)
 ```
 
 
@@ -62,9 +62,9 @@ figs.iter.save=5
 quadratic=T       # T - quadratic DGP, F - linear
 symm_obw="mserd"  # mserd - symmetric OBW, msetwo - asymmetric OBW 
 normal.x=T        # T - normal draws of x around cutoff, F - uniform draws
-dgp.sd=5         # sd of normal noise added to DGP
-bc=F              # bias-corrected estimates or conventional
-pol.order=1       # order of local polynomial approx.
+dgp.sd=3         # sd of normal noise added to DGP
+bc=T              # bias-corrected estimates or conventional
+pol.order=1       # polynomial order of local polynomial approx.
 set.seed(123)
 ```
 
@@ -103,7 +103,7 @@ dt$y=dt$y.model + rnorm(length(dt$x),0,dgp.sd)
 sample.x <- as.data.table(matrix(0, ncol = 0, nrow = nrow(dt)/10)) 
 ```
 
-```{r plot_dgp, echo=F}
+```{r plot_dgp}
 ### Plot DGP
 dt[x %between% c(-50,50)] %T>%
   plot(y~x,., ylim = range(c(y,y.model)),
@@ -148,17 +148,6 @@ for(i in 1:loop) {
   sample.x <- sample.x[x %between% c(-100,100)]
   sample <- merge(dt,sample.x, by="x")
   
-  if (i==loop){
-  ## Plot truncated DGP
-  sample[x %between% c(-50,50)] %T>%
-  plot(y~x,., ylim = range(c(y,y.model)),
-       pch=20, col="blue", ylab = "Y", xlab = "X") %T>%
-  par(new = T) %>%
-  plot(y.model~x,., ylim = range(c(y,y.model)),
-       pch=20, axes = FALSE, xlab = "", ylab = "")
-  title(main = "DGP + Model")
-  }
-  
   results.current <- rdrobust(sample$y,sample$x,bwselect = symm_obw, p=pol.order)
   results[i,1 := results.current$coef[bc+1]-jump] # normalizing to zero
   results[i,c(3,4) := as.list(results.current$bws[bc+1,])]
@@ -180,17 +169,6 @@ for(i in 1:loop) {
   results.exercise[i,5:6] <- results[i,1:2]-results.exercise[i,1:2] # computing diff from base
   results.exercise[i,7 := results.current$se[bc+1]]
   results.exercise[i,8 := results[i,5]-results.exercise[i,7]]
-
-  if (i==loop){
-    ## Plot truncated DGP
-    sample.exercise[x %between% c(-50,50)] %T>%
-    plot(y~x,., ylim = range(c(y,y.model)),
-         pch=20, col="blue", ylab = "Y", xlab = "X") %T>%
-    par(new = T) %>%
-    plot(y.model~x,., ylim = range(c(y,y.model)),
-         pch=20, axes = FALSE, xlab = "", ylab = "")
-    title(main = "DGP + Model")
-  }
   
 ### FIGURES INSIDE LOOP - SPECIFIC DRAWS ###
 if (i >= begin.figures) {
@@ -357,7 +335,7 @@ cor(results$coef,results.exercise$coef_diff)
 
 ### Summary results - table:
 Note: coefficient (treatment effects) are normalized to zero, by subtracting from each estimate the size of the jump at the cutoff.
-```{r table, echo=F}
+```{r table, eval=F}
 results_table=as.data.frame(matrix(0, ncol = 3, nrow = 3))
 results_table[1,1]=round(mean(results$coef),digits = 4)
 results_table[1,2]=round(mean(results.exercise$coef),digits = 4)
@@ -396,7 +374,7 @@ if (dgp.sd==1 & bc==T) {
 } 
 ```
 
-```{r save_results, echo=F}
+```{r save_results, eval=F}
 bc_F <- rbind(table_sd_1,table_sd_3,table_sd_5,table_sd_10)
 bc_T <- rbind(table_sd_1_bc,table_sd_3_bc,table_sd_5_bc,table_sd_10_bc)
 full <- cbind(bc_F,bc_T)
@@ -467,6 +445,38 @@ dev.off()
 ```
 
 ### Interpreting results
-`r ifelse(exercise=="zero","When replacing values outside OBW with zeros, the new OBW are smaller, but the estimated coefficients remain unbiased","When dropping values outside OBW, the new OBW are smaller, and the estimated coefficients are biased downwards")`
+`r ifelse(exercise=="zero","When replacing values outside OBW with zeros, the new OBW are smaller, but the estimated coefficients remain unbiased.","When dropping values outside OBW, the new OBW are smaller, and the estimated coefficients are biased.")`
+
+### Sensitivity Analysis to Noise-to-Signal Ratio
+Finally, in order to put our results into context, we run a sensitivity analysis to analyze the degree to which the results are affected or driven by the noise-to-signal ratio. The ratio we refer to, here, is the size of the standard deviation of the error term that is added to the true underlying mean function for $Y$ relative to the true treatment effect size (size of the discontinuity, $\tau$).
+
+We take the Lee (2008) paper on political incumbency advantage as our benchmark for what a reasonable noise-to-signal ratio could be to assess the effect of data-trimming on subsequent selection of the optimal bandwidth and the treatment effect estimates. In the simulation studies calibrated to the Lee (2008) setting, both Imbens and Kalyanaraman (2012, ReStud) and Calonico et al. (2019, ReStat) have the true treatment effect size to be 0.04 while the standard deviation of the noise is 0.1295^2. This yields a noise-to-signal ratio of roughly 0.42. We consider ranges below (from 0.1) and above to (to 10) to study how the bias and the standard errors change.
+
+The results are shown in the graphs below. We report the ratio of bias divided by the true treatment effect size (here, assumed to be `r jump`). This is, again, to compare our results to that of the simulation studies based on Lee (2008) and presented by Imbens and Kalyanaraman and Calonico et al.. Whereas they respectively obtain bias-to-treatment effect ratio of approximately $\frac{0.0799-0.04}{0.04} = 0.9975$ and $\frac{0.062-0.04}{0.04} = 0.55$, we get closer to 0.01 when using a noise-to-signal ratio of 0.5. 
+
+One can observe that the bias ratio monotonically increases with increased noise, which is not too surprising. The first plot compares the results for the baseline case, where data is not dropped right outside the optimally selected bandwidth, while the second plot shows what happens when the data outside the initially selected bandwidth is removed (as a theoretical sensitivity exercise). 
+
+```{r attachpng1, echo=F}
+knitr::include_graphics(here("figures", "rdsimplot1.png"), dpi=100)
+```
+
+The effect of trimming the data is quite severe on the estimation, but once using the bias-corrected method suggsted by `rdrobust`, one can see that much of the bias disappears. Furthermore, the bias/tau ratio is quite small (falling within 1-10% of the treatment effect size). It is interesting to see that the bias-corrected estimates actually perform better when the data is trimmmed for our simple quadratic DGP than when we have the full dataset.
+
+```{r attachpng2, echo=F}
+knitr::include_graphics(here("figures", "rdsimplot2.png"), dpi=110)
+knitr::include_graphics(here("figures", "rdsimplot3.png"), dpi=110)
+```
+
+We finally report the results in a table (which are depicted in the graphs above).
+```{r attachpng3, echo=F}
+knitr::include_graphics(here("figures", "rdsim.png"), dpi=80)
+```
+
+### References
+1. Imbens, G., Kalyanaraman, K., July 2012. Optimal Bandwidth Choice for the Regression Discontinuity Estimator, The Review of Economic Studies, Volume 79, Issue 3, Pages 933–959.
+
+2. Calonico, S., Cattaneo, M., Farrell, M. & Titiunik, R., July 2019. Regression Discontinuity Designs Using Covariates, The Review of Economics and Statistics, MIT Press, vol. 101(3), pages 442-451.
+
+3. Lee, D., Randomized Experiments from Non-random Selection in U.S. House Elections, February 2008. Journal of Econometrics, 142, 675-697.
 
 
